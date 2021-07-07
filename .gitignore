@@ -1,0 +1,14 @@
+# Byte-compiled
+__pycache__/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+.env
+
+# output
+.DS_Store
+
+# debug files
+debug*
