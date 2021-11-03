@@ -1,12 +1,15 @@
 from datetime import datetime as dt
+
 import pandas as pd
 import yfinance as yf
+
 
 class GetPriceData(object):
     """
     株価を取得するクラス
     現状 Yahoo! Finance から価格データを取得
     """
+
     def __init__(self) -> None:
         pass
 
@@ -33,7 +36,7 @@ class GetPriceData(object):
         return price_series[0]
 
     @staticmethod
-    def get_weekly_close(code:str) -> pd.core.series.Series:
+    def get_weekly_close(code: str) -> pd.core.series.Series:
         return yf.download(code, period='7d', interbal='1d', progress=False)['Close']
 
     def get_usdjpy_close(self, date):
