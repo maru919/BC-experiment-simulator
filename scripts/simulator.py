@@ -68,7 +68,7 @@ class VariableLocalTransaction(object):
     """
 
     def __init__(self, jct_portfolio: dict, st_portfolio: dict, start_date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)',
-                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False) -> None:
+                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False, auto_deposit: bool=False) -> None:
         self.borrower = borrower
         self.lender = lender
         self.jct_portfolio = copy.deepcopy(jct_portfolio)
@@ -76,12 +76,14 @@ class VariableLocalTransaction(object):
         self.borrower_loan_ratio = borrower_loan_ratio
         self.lender_loan_ratio = lender_loan_ratio
         self.print_log = print_log
+        self.auto_deposit = auto_deposit
         self.logs = []
         print(f'JCT portfolio: {self.jct_portfolio}')
         print(f'ST portfolio: {self.st_portfolio}')
 
-        self.lender_jct_num = update_portfolio_price(self.st_portfolio, start_date, print_log) * self.lender_loan_ratio / self.borrower_loan_ratio
-        self.total_jct_num = update_portfolio_price(self.jct_portfolio, start_date, print_log)
+        st_total_value = update_portfolio_price(self.st_portfolio, start_date, print_log)
+        self.lender_jct_num = math.ceil(st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio)
+        self.total_jct_num = math.floor(update_portfolio_price(self.jct_portfolio, start_date, print_log))
         self.borrower_jct_num = self.total_jct_num - self.lender_jct_num
 
         if self.borrower_jct_num < 0:
@@ -90,12 +92,12 @@ class VariableLocalTransaction(object):
         log = {
             'date': start_date,
             'jct_price': 1.0,
-            'st_total_value': self.lender_jct_num,
-            'lender_jct_total_value': self.lender_jct_num,
+            'st_total_value': st_total_value,
             'jct_total_value': self.total_jct_num,
             'borrower_jct_num': self.borrower_jct_num,
             'lender_jct_num': self.lender_jct_num,
-            'jct_difference': 0
+            'jct_difference': 0,
+            'auto_deposit': False
         }
 
         self.logs.append(log)
@@ -103,9 +105,6 @@ class VariableLocalTransaction(object):
         print('Transaction is made.')
         if print_log:
             pprint(log)
-
-        # print(f'{self.lender_jct_num} JCT is handed to Lender {self.lender}')
-        # print(f'Borrower {self.borrower} has {self.borrower_jct_num} JCT more.')
 
     def check_diff_and_margin_call(self, date):
         """
@@ -121,27 +120,32 @@ class VariableLocalTransaction(object):
 
         jct_diff_num = math.ceil(((st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio) - lender_jct_total_value) / jct_price)
 
-        if jct_diff_num > 0:
-            if jct_diff_num > self.borrower_jct_num:
-                self.lender_jct_num += self.borrower_jct_num
-                self.borrower_jct_num = 0
+        need_deposit = jct_diff_num > 0 and jct_diff_num > self.borrower_jct_num
+        if need_deposit:
+            if not self.auto_deposit:
                 raise ValueError(f'WARNING: {self.borrower} must add JCT!!')
-            else:
-                self.lender_jct_num += jct_diff_num
-                self.borrower_jct_num -= jct_diff_num
+
+            # 自動で不足分の現金を補填する
+            additional_deposit = math.ceil((jct_diff_num - self.borrower_jct_num) * jct_price)
+            print(f'Additional deposit! {additional_deposit} JPY is added.')
+            self.jct_portfolio['JPY']['num'] += additional_deposit
+            self.lender_jct_num += jct_diff_num
+            self.total_jct_num += jct_diff_num - self.borrower_jct_num
+            self.borrower_jct_num = 0
+
         else:
-            self.lender_jct_num -= abs(jct_diff_num)
-            self.borrower_jct_num += abs(jct_diff_num)
+            self.lender_jct_num += jct_diff_num
+            self.borrower_jct_num -= jct_diff_num
 
         log = {
             'date': date,
             'jct_price': jct_price,
             'st_total_value': st_total_value,
-            'lender_jct_total_value': self.lender_jct_num * jct_price,
             'jct_total_value': jct_total_value,
             'borrower_jct_num': self.borrower_jct_num,
             'lender_jct_num': self.lender_jct_num,
-            'jct_difference': jct_diff_num
+            'jct_difference': jct_diff_num,
+            'auto_deposit': need_deposit
         }
 
         self.logs.append(log)
@@ -157,7 +161,7 @@ class StableTransaction(object):
     """
 
     def __init__(self, jct_portfolio: dict, st_portfolio: dict, start_date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)',
-                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False) -> None:
+                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False, auto_deposit: bool = False) -> None:
         print(jct_portfolio, st_portfolio, start_date)
         self.borrower = borrower
         self.lender = lender
@@ -166,12 +170,14 @@ class StableTransaction(object):
         self.borrower_loan_ratio = borrower_loan_ratio
         self.lender_loan_ratio = lender_loan_ratio
         self.print_log = print_log
+        self.auto_deposit = auto_deposit
         self.logs = []
         pprint(f'JCT portfolio: {self.jct_portfolio}')
         pprint(f'ST portfolio: {self.st_portfolio}')
 
-        self.lender_jct_num = update_portfolio_price(self.st_portfolio, start_date, print_log) * self.lender_loan_ratio / self.borrower_loan_ratio
-        self.total_jct_num = update_portfolio_price(self.jct_portfolio, start_date, print_log)
+        st_total_value = update_portfolio_price(self.st_portfolio, start_date, print_log)
+        self.lender_jct_num = math.ceil(st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio)
+        self.total_jct_num = math.floor(update_portfolio_price(self.jct_portfolio, start_date, print_log))
         self.borrower_jct_num = self.total_jct_num - self.lender_jct_num
 
         if self.borrower_jct_num < 0:
@@ -184,7 +190,8 @@ class StableTransaction(object):
             'borrower_jct_num': self.borrower_jct_num,
             'lender_jct_num': self.lender_jct_num,
             'jct_diff_num': 0,
-            'moved_jct_num': 0
+            'moved_jct_num': 0,
+            'auto_deposit': False
         }
         self.logs.append(log)
 
@@ -201,18 +208,38 @@ class StableTransaction(object):
         jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log)
 
         jct_diff_num = math.ceil(jct_total_value) - self.total_jct_num
+        auto_deposit = False
         if jct_diff_num < 0 and (self.borrower_jct_num + jct_diff_num) < 0:
-            raise ValueError(f'WARNING: {self.borrower} must add enough collateral for more JCT.')
+            if not self.auto_deposit:
+                raise ValueError(f'WARNING: {self.borrower} must add enough collateral for more JCT.')
+
+            # 自動で不足分の現金を補填する
+            auto_deposit = True
+            additional_deposit = abs(self.borrower_jct_num + jct_diff_num)
+            print(f'Additional deposit! {additional_deposit} JPY is added.')
+            self.jct_portfolio['JPY']['num'] += additional_deposit
+            self.total_jct_num += additional_deposit
+            self.borrower_jct_num += additional_deposit
 
         self.total_jct_num += jct_diff_num
         self.borrower_jct_num += jct_diff_num
 
         st_diff_num = math.ceil(st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio) - self.lender_jct_num
         if st_diff_num > self.borrower_jct_num:
-            raise ValueError(f'WARNING: {self.borrower} must add enough collateral for more JCT.')
+            if not self.auto_deposit:
+                raise ValueError(f'WARNING: {self.borrower} must add enough collateral for more JCT.')
 
-        self.lender_jct_num += st_diff_num
-        self.borrower_jct_num -= st_diff_num
+            # 自動で不足分の現金を補填する
+            auto_deposit = True
+            additional_deposit = abs(st_diff_num - self.borrower_jct_num)
+            print(f'Additional deposit! {additional_deposit} JPY is added.')
+            self.jct_portfolio['JPY']['num'] += additional_deposit
+            self.total_jct_num += additional_deposit
+            self.borrower_jct_num = 0
+            self.lender_jct_num += st_diff_num
+        else:
+            self.lender_jct_num += st_diff_num
+            self.borrower_jct_num -= st_diff_num
 
         log = {
             'date': date,
@@ -222,6 +249,7 @@ class StableTransaction(object):
             'lender_jct_num': self.lender_jct_num,
             'jct_diff_num': jct_diff_num,
             'moved_jct_num': st_diff_num,
+            'auto_deposit': auto_deposit
         }
 
         self.logs.append(log)
