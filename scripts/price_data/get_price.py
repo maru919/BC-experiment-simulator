@@ -3,7 +3,6 @@ from datetime import datetime as dt
 import pandas as pd
 import yfinance as yf
 
-
 class GetPriceData(object):
     """
     株価を取得するクラス
