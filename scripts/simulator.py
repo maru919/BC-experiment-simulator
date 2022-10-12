@@ -87,7 +87,7 @@ class VariableLocalTransaction(object):
         self.borrower_jct_num = self.total_jct_num - self.lender_jct_num
 
         if self.borrower_jct_num < 0:
-            raise ValueError('Initial JCT is insufficient!!')
+            raise ValueError(f'Initial JCT is insufficient!!\nborrower_jct_num: {self.borrower_jct_num}')
 
         log = {
             'date': start_date,
@@ -102,7 +102,7 @@ class VariableLocalTransaction(object):
 
         self.logs.append(log)
 
-        print('Transaction is made.')
+        print('Transaction is created.')
         if print_log:
             pprint(log)
 
@@ -120,14 +120,16 @@ class VariableLocalTransaction(object):
 
         jct_diff_num = math.ceil(((st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio) - lender_jct_total_value) / jct_price)
 
-        need_deposit = jct_diff_num > 0 and jct_diff_num > self.borrower_jct_num
-        if need_deposit:
+        necessary_deposit = jct_diff_num > 0 and jct_diff_num > self.borrower_jct_num
+        if necessary_deposit:
             if not self.auto_deposit:
                 raise ValueError(f'WARNING: {self.borrower} must add JCT!!')
 
             # 自動で不足分の現金を補填する
             additional_deposit = math.ceil((jct_diff_num - self.borrower_jct_num) * jct_price)
             print(f'Additional deposit! {additional_deposit} JPY is added.')
+            print('*'*50)
+            print('*'*50)
             self.jct_portfolio['JPY']['num'] += additional_deposit
             self.lender_jct_num += jct_diff_num
             self.total_jct_num += jct_diff_num - self.borrower_jct_num
@@ -145,7 +147,7 @@ class VariableLocalTransaction(object):
             'borrower_jct_num': self.borrower_jct_num,
             'lender_jct_num': self.lender_jct_num,
             'jct_difference': jct_diff_num,
-            'auto_deposit': need_deposit
+            'auto_deposit': necessary_deposit
         }
 
         self.logs.append(log)
@@ -195,7 +197,7 @@ class StableTransaction(object):
         }
         self.logs.append(log)
 
-        print('Transaction is made.')
+        print('Transaction is created.')
         if print_log:
             pprint(log)
 

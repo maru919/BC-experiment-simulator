@@ -1,3 +1,4 @@
+from ctypes import Union
 from datetime import datetime as dt
 
 import pandas as pd
@@ -28,7 +29,7 @@ class GetPriceData(object):
         price_series = price_df['Close']
         return price_series[0]
 
-    def get_today_close(self, code: str) -> float:
+    def get_today_close_price(self, code: str) -> float:
         if code == 'JPY':
             return 1.0
         price_series = self.get_close_price_all(code)
