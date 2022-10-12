@@ -1,9 +1,11 @@
 """
-1. JCT=(N, 可変), ST=(1, 可変)
+1. JCT=(N, 可変), ST=(1, 可変) [On Going]
     - JCT の価値は担保に入れられた複数の有価証券の価値から算出される
     - 時価更新時には JCT の総数量は不変で、その価値が更新される
     - 取引においては JCT の授受によって自動マージンコールが行われる
-1-a(Deprecated!!).
+
+
+1-a.(Deprecated!!)
 VariableGlobalTransaction()
 GlobalJCT()
     - JCT はグローバル（あらゆる取引においても唯一の価値）
