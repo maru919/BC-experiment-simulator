@@ -5,6 +5,8 @@ import math
 from pprint import pprint
 from typing import Dict, List, Optional, TypedDict, Union
 
+from scripts.types import PortfolioItem, PortfolioWithPriorityItem
+
 from .utils import update_portfolio_price
 
 class JCTVariableTransaction(object):
@@ -103,10 +105,8 @@ class JCTVariableTransaction(object):
 
 
 
-PortfolioItem = TypedDict('PortfolioItem', {'num': int, 'price': Optional[int], 'is_usd': bool})
-PortfolioWithPriorityItem = TypedDict('PortfolioWithPriorityItem', {'num': int, 'price': Optional[int], 'priority': Optional[int], 'is_usd': bool})
 
-class AutoAdjustmentTransaction(JCTVariableTransaction):
+class AutoAdjustmentTransaction(object):
   """
   JCT＝日本円、のような形で扱い、担保としてSTも差し入れられるようにする
   これによって双方がSTをやり取りするような形になる
@@ -123,7 +123,7 @@ class AutoAdjustmentTransaction(JCTVariableTransaction):
       self.print_log = print_log
       self.auto_deposit = auto_deposit
       self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
-      self.logs = []
+      self.logs: Dict[str, list] = {}
       pprint(f'JCT portfolio: {self.jct_portfolio}')
       pprint(f'ST portfolio: {self.st_portfolio}')
 
@@ -132,24 +132,29 @@ class AutoAdjustmentTransaction(JCTVariableTransaction):
       collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
       self.necessary_collateral_value =  collateral_total_value
 
-      for code, collateral in sorted(self.jct_portfolio.items(), key =lambda x: x[1]['priority'], reverse=True): # type ignore
+      for code, collateral in sorted(self.jct_portfolio.items(), key =lambda x: x[1]['priority'], reverse=True): # type: ignore
         pprint(f'{code}: {collateral}')
         collateral_value = collateral['price'] * collateral['num']
         if collateral_value >= collateral_total_value:
-          collateral_num = math.ceil(collateral_value / collateral['price']) 
-          self.jct_portfolio[code]['num'] -= collateral_num
+          collateral_num = math.ceil(collateral_total_value / collateral['price']) 
+
+          if (collateral_num > self.jct_portfolio[code]['num']):
+            print("絶妙に足りない場合")
+            continue
+
           self.collateral_portfolio[code] = {
             'num': collateral_num,
             'is_usd': collateral['is_usd'],
             'price': collateral['price'],
             'priority': collateral['priority']
           }
+          self.jct_portfolio[code]['num'] -= collateral_num
+          
           collateral_total_value = 0
           print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
           break
 
         # to next collateral
-        self.jct_portfolio[code]['num'] = 0
         self.collateral_portfolio[code] = {
           'num': collateral['num'],
           'is_usd': collateral['is_usd'],
@@ -157,6 +162,7 @@ class AutoAdjustmentTransaction(JCTVariableTransaction):
           'priority': collateral['priority']
         }
         collateral_total_value -= collateral['price'] * collateral['num']
+        self.jct_portfolio[code]['num'] = 0
         
 
       if collateral_total_value > 0:
@@ -166,15 +172,20 @@ class AutoAdjustmentTransaction(JCTVariableTransaction):
           'date': start_date,
           'st_total_value': st_total_value,
           'jct_total_value': jct_total_value,
-          'collateral_portfolio': self.collateral_portfolio,
+          'jct_portfolio': copy.deepcopy(self.jct_portfolio),
+          'collateral_portfolio': copy.deepcopy(self.collateral_portfolio),
           'necessary_collateral_value': self.necessary_collateral_value
       }
-
-      self.logs.append(log)
+      self.logs['date'] = [start_date]
+      self.logs['st_total_value'] = [st_total_value]
+      self.logs['jct_total_value'] = [jct_total_value]
+      self.logs['jct_portfolio'] = [copy.deepcopy(self.jct_portfolio)]
+      self.logs['collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
+      self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
 
       print('Transaction is created.')
       if self.print_log:
-          pprint(log)
+          pprint(self.logs)
 
   def check_diff_and_margin_call(self, date: Union[str, date]):
       """
@@ -184,53 +195,80 @@ class AutoAdjustmentTransaction(JCTVariableTransaction):
       """
       st_total_value = update_portfolio_price(self.st_portfolio, date, self.print_log)
       jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log)
-      update_portfolio_price(self.collateral_portfolio, date)
+      collateral_sum = update_portfolio_price(self.collateral_portfolio, date)
+
       # 預け入れるべき担保額
       collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
       self.necessary_collateral_value = collateral_total_value
 
-      for code, collateral in sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True): # type ignore
-        pprint(f'{code}: {collateral}')
-        collateral_value = collateral['price'] * collateral['num']
-        if collateral_value >= collateral_total_value:
-          collateral_num = math.ceil(collateral_value / collateral['price']) 
-          self.jct_portfolio[code]['num'] -= collateral_num
+      # 現状差し入れている担保価値と差し入れるべき担保の価値の差分
+      collateral_diff = collateral_total_value - collateral_sum
 
+      if (collateral_diff > 0):
+        print(f'from {self.borrower} to {self.lender}')
+        for code, collateral in sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True): # type: ignore
+          pprint(f'{code}: {collateral}')
+          collateral_value = collateral['price'] * collateral['num']
+          if collateral_value >= collateral_diff:
+            collateral_num = math.ceil(collateral_diff / collateral['price']) 
+            if (collateral_num > self.jct_portfolio[code]['num']):
+              continue
+
+            if code in self.collateral_portfolio:
+              self.collateral_portfolio[code]['num'] += collateral_num
+            else:
+              self.collateral_portfolio[code] = {
+                'num': collateral_num,
+              'is_usd': collateral['is_usd'],
+              'price': collateral['price'],
+              'priority': collateral['priority']
+              }
+            
+            self.jct_portfolio[code]['num'] -= collateral_num
+            print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
+            break
+
+          # to next collateral
           if code in self.collateral_portfolio:
-            self.collateral_portfolio[code]['num'] += collateral_num
+            self.collateral_portfolio[code]['num'] += collateral['num']
           else:
             self.collateral_portfolio[code] = {
-              'num': collateral_num,
-            'is_usd': collateral['is_usd'],
-            'price': collateral['price'],
-            'priority': collateral['priority']
+              'num': collateral['num'],
+              'is_usd': collateral['is_usd'],
+              'price': collateral['price'],
+              'priority': collateral['priority']
             }
-          collateral_total_value = 0
-          print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
-          break
+          collateral_diff -= collateral['price'] * collateral['num']
+          self.jct_portfolio[code]['num'] = 0
 
-        # to next collateral
-        self.jct_portfolio[code]['num'] = 0
-        if code in self.collateral_portfolio:
-          self.collateral_portfolio[code]['num'] += collateral['num']
-        else:
-          self.collateral_portfolio[code] = {
-            'num': collateral['num'],
-            'is_usd': collateral['is_usd'],
-            'price': collateral['price'],
-            'priority': collateral['priority']
-          }
+      else:
+        collateral_diff = abs(collateral_diff)
+        print(f'from {self.lender} to {self.borrower}')
+        for code, collateral in sorted(self.collateral_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True): # type: ignore
+          pprint(f'{code}: {collateral}')
+          collateral_value = collateral['price'] * collateral['num']
+          if collateral_value >= collateral_diff:
+            collateral_num = math.ceil(collateral_diff / collateral['price'])
+            if (collateral_num > self.collateral_portfolio[code]['num']):
+              continue
 
-        collateral_total_value -= collateral['price'] * collateral['num']
-        
-      log = {
-          'date': date,
-          'st_total_value': st_total_value,
-          'jct_total_value': jct_total_value,
-          'collateral_portfolio': self.collateral_portfolio,
-      }
+            self.jct_portfolio[code]['num'] += collateral_num
+            self.collateral_portfolio[code]['num'] -= collateral_num
 
-      self.logs.append(log)
+            print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
+            break
+          
+          # to next collateral
+          self.jct_portfolio[code]['num'] += collateral['num']
+          collateral_diff -= collateral['price'] * collateral['num']
+          self.collateral_portfolio[code]['num'] = 0
+
+      self.logs['date'].append(date)
+      self.logs['st_total_value'].append(st_total_value)
+      self.logs['jct_total_value'].append(jct_total_value)
+      self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
+      self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
+      self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+
       if self.print_log:
           print('OK. collateral is moved.')
-          pprint(log)
