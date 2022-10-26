@@ -113,7 +113,7 @@ class AutoAdjustmentTransaction(object):
   **借り手側が差し入れる担保に優先順位をつけ、価格調整にJCT以外のトークンも用いられるようにする
   **これによってJCTの追加差し入れ等をせずに自動で価格調整ができる
   """
-  def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False) -> None:
+  def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False, is_dummy_data: bool=False) -> None:
       self.borrower = borrower
       self.lender = lender
       self.jct_portfolio = copy.deepcopy(jct_portfolio)
@@ -124,11 +124,12 @@ class AutoAdjustmentTransaction(object):
       self.auto_deposit = auto_deposit
       self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
       self.logs: Dict[str, list] = {}
+      self.is_dummy_data = is_dummy_data
       pprint(f'JCT portfolio: {self.jct_portfolio}')
       pprint(f'ST portfolio: {self.st_portfolio}')
 
-      st_total_value = update_portfolio_price(self.st_portfolio, start_date, print_log)
-      jct_total_value = update_portfolio_price(self.jct_portfolio, start_date, print_log)
+      st_total_value = update_portfolio_price(self.st_portfolio, start_date, print_log, is_dummy_data=self.is_dummy_data)
+      jct_total_value = update_portfolio_price(self.jct_portfolio, start_date, print_log, is_dummy_data=self.is_dummy_data)
       collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
       self.necessary_collateral_value =  collateral_total_value
 
@@ -193,9 +194,9 @@ class AutoAdjustmentTransaction(object):
       差し入れている担保の優先寺度に従って差し入れていくことで、複数の担保がある際の
       価格調整用担保の追加差し入れのような事態を防ぐ
       """
-      st_total_value = update_portfolio_price(self.st_portfolio, date, self.print_log)
-      jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log)
-      collateral_sum = update_portfolio_price(self.collateral_portfolio, date)
+      st_total_value = update_portfolio_price(self.st_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+      jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+      collateral_sum = update_portfolio_price(self.collateral_portfolio, date, is_dummy_data=self.is_dummy_data)
 
       # 預け入れるべき担保額
       collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio

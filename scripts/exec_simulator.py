@@ -1,3 +1,7 @@
+"""
+シミュレーションを実行するためのクラス
+"""
+ 
 import copy
 from datetime import date, timedelta
 import math
@@ -10,7 +14,7 @@ from .types import PortfolioItem, PortfolioWithPriorityItem
 from .variableLocal import  AutoAdjustmentTransaction
 
 class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
-    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: date, end_date: date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False) -> None:
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: date, end_date: date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False, is_dummy_data: bool = False) -> None:
         self.borrower = borrower
         self.lender = lender
         self.jct_portfolio = copy.deepcopy(jct_portfolio)
@@ -23,6 +27,7 @@ class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
         self.logs: Dict[str, list] = {}
         self.start_date = start_date
         self.print_log = print_log
+        self.is_dummy_data = is_dummy_data
 
         pprint(f'JCT portfolio: {self.jct_portfolio}')
         pprint(f'ST portfolio: {self.st_portfolio}')
@@ -37,8 +42,8 @@ class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
         self.initialize()
     
     def initialize(self):
-        st_total_value = update_portfolio_price(self.st_portfolio, self.start_date, self.print_log)
-        jct_total_value = update_portfolio_price(self.jct_portfolio, self.start_date, self.print_log)
+        st_total_value = update_portfolio_price(self.st_portfolio, self.start_date, self.print_log, is_dummy_data=self.is_dummy_data)
+        jct_total_value = update_portfolio_price(self.jct_portfolio, self.start_date, self.print_log, is_dummy_data=self.is_dummy_data)
         collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
         self.necessary_collateral_value =  collateral_total_value
         
