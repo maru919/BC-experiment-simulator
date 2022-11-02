@@ -36,7 +36,7 @@ class LogVisualizer(object):
             total_value += security['num'] * security['price']
         return total_value
 
-    def collateral_portfolio_comparison(self) -> None:
+    def compare_collateral_portfolio(self) -> None:
         # 初期差し入れ担保、価格調整自動化後差し入れ担保の価値推移比較
         _fig, ax1 = plt.subplots(figsize=(30, 15))
         ax1_2 = ax1.twinx()
@@ -60,6 +60,22 @@ class LogVisualizer(object):
         ax1_2.tick_params(axis='y', colors='blue', labelsize=15)
         ax1_2.yaxis.offsetText.set_fontsize(15)
 
-    # def daily_collateral_diff(self) -> None:
-    #     # 日々の差し入れ担保の差分
-    #     self.
+    def calc_collateral_percentage(self) -> None:
+        # 差し入れている担保の割合の推移
+        color_list = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
+        security_list = self.initial_collateral_portfolio_list[0].keys()
+        collateral_percentages = {}
+        for security in security_list:
+            collateral_percentages[security] = []
+            for portfolio in self.collateral_portfolio_list:
+                if security in portfolio:
+                    collateral_percentages[security].append(portfolio[security]['num'] / self.initial_collateral_portfolio_list[0][security]['num'])
+                else:
+                    collateral_percentages[security].append(0)
+
+        plt.figure(figsize=(30, 15))
+        plt.title("差し入れ担保の割合推移", fontsize=30, pad=20, fontname="Hiragino Sans")
+        for idx, security in enumerate(security_list):
+            plt.plot(self.date_list, collateral_percentages[security], marker='o', markersize=5, color=color_list[idx], label=security)
+
+        return collateral_percentages
