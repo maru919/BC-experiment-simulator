@@ -4,7 +4,7 @@ import math
 from pprint import pprint
 from typing import Dict, Union
 
-from scripts.types import PortfolioItem, PortfolioWithPriorityItem
+from scripts.types import PortfolioItem, PortfolioWithPriorityItem, TransactionOption
 
 from .utils import update_portfolio_price
 
@@ -112,23 +112,25 @@ class AutoAdjustmentTransaction(object):
     **これによってJCTの追加差し入れ等をせずに自動で価格調整ができる
     """
 
-    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False, is_dummy_data: bool = False) -> None:
-        self.borrower = borrower
-        self.lender = lender
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], options: TransactionOption) -> None:
+        self.borrower = options['borrower'] if 'borrower' in options else "Borrower(A)"
+        self.lender = options['lender'] if 'lender' in options else 'Lender(B)'
         self.jct_portfolio = copy.deepcopy(jct_portfolio)
         self.st_portfolio = copy.deepcopy(st_portfolio)
-        self.borrower_loan_ratio = borrower_loan_ratio
-        self.lender_loan_ratio = lender_loan_ratio
-        self.print_log = print_log
-        self.auto_deposit = auto_deposit
+        self.borrower_loan_ratio = options['borrower_loan_ratio'] if 'borrower_loan_ratio' in options else 1.0
+        self.lender_loan_ratio = options['lender_loan_ratio'] if 'lender_loan_ratio' in options else 1.0
+        self.print_log = options['print_log'] if 'print_log' in options else False
+        self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
+        self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
+        self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
-        self.is_dummy_data = is_dummy_data
+
         pprint(f'JCT portfolio: {self.jct_portfolio}')
         pprint(f'ST portfolio: {self.st_portfolio}')
 
-        st_total_value = update_portfolio_price(self.st_portfolio, start_date, print_log, is_dummy_data=self.is_dummy_data)
-        jct_total_value = update_portfolio_price(self.jct_portfolio, start_date, print_log, is_dummy_data=self.is_dummy_data)
+        st_total_value = update_portfolio_price(self.st_portfolio, start_date, self.print_log, is_dummy_data=self.is_dummy_data)
+        jct_total_value = update_portfolio_price(self.jct_portfolio, start_date, self.print_log, is_dummy_data=self.is_dummy_data)
         collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
         self.necessary_collateral_value = collateral_total_value
 
@@ -204,10 +206,11 @@ class AutoAdjustmentTransaction(object):
         collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
         self.necessary_collateral_value = collateral_total_value
 
-        # 現状差し入れている担保価値と差し入れるべき担保の価値の差分
+        # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
         collateral_diff = collateral_total_value - collateral_sum
 
         if (collateral_diff > 0):
+            # borrower -> lender への担保追加差し入れなのでシンプルに優先度が高い順に差し入れ
             print(f'from {self.borrower} to {self.lender}')
             for code, collateral in sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True):  # type: ignore
                 pprint(f'{code}: {collateral}')
@@ -245,9 +248,10 @@ class AutoAdjustmentTransaction(object):
                 self.jct_portfolio[code]['num'] = 0
 
         else:
+            # lender -> borrower への担保返還なので価格調整用の優先度が低い順に返還(option['is_reverse'])
             collateral_diff = abs(collateral_diff)
             print(f'from {self.lender} to {self.borrower}')
-            for code, collateral in sorted(self.collateral_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True):  # type: ignore
+            for code, collateral in sorted(self.collateral_portfolio.items(), key=lambda x: x[1]['priority'], reverse=self.is_reverse):  # type: ignore
                 pprint(f'{code}: {collateral}')
                 collateral_value = collateral['price'] * collateral['num']
                 if collateral_value >= collateral_diff:

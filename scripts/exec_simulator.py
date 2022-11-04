@@ -10,25 +10,25 @@ from typing import Dict
 
 from .utils import update_portfolio_price
 
-from .types import PortfolioItem, PortfolioWithPriorityItem
+from .types import PortfolioItem, PortfolioWithPriorityItem, TransactionOption
 from .variableLocal import AutoAdjustmentTransaction
 
 
 class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
-    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: date, end_date: date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)', borrower_loan_ratio: float = 1, lender_loan_ratio: float = 1, print_log: bool = False, auto_deposit: bool = False, is_dummy_data: bool = False) -> None:
-        self.borrower = borrower
-        self.lender = lender
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: date, end_date: date, options: TransactionOption) -> None:
+        self.borrower = options['borrower'] if 'borrower' in options else "Borrower(A)"
+        self.lender = options['lender'] if 'lender' in options else 'Lender(B)'
         self.jct_portfolio = copy.deepcopy(jct_portfolio)
         self.st_portfolio = copy.deepcopy(st_portfolio)
-        self.borrower_loan_ratio = borrower_loan_ratio
-        self.lender_loan_ratio = lender_loan_ratio
-        self.print_log = print_log
-        self.auto_deposit = auto_deposit
+        self.borrower_loan_ratio = options['borrower_loan_ratio'] if 'borrower_loan_ratio' in options else 1.0
+        self.lender_loan_ratio = options['lender_loan_ratio'] if 'lender_loan_ratio' in options else 1.0
+        self.print_log = options['print_log'] if 'print_log' in options else False
+        self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
+        self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
+        self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
         self.start_date = start_date
-        self.print_log = print_log
-        self.is_dummy_data = is_dummy_data
 
         pprint(f'JCT portfolio: {self.jct_portfolio}')
         pprint(f'ST portfolio: {self.st_portfolio}')
