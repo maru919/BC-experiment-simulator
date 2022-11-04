@@ -77,5 +77,5 @@ class LogVisualizer(object):
         plt.title("差し入れ担保の割合推移", fontsize=30, pad=20, fontname="Hiragino Sans")
         for idx, security in enumerate(security_list):
             plt.plot(self.date_list, collateral_percentages[security], marker='o', markersize=5, color=color_list[idx], label=security)
-
+        plt.legend(loc=2, fontsize=20)
         return collateral_percentages
