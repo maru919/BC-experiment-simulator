@@ -26,6 +26,7 @@ class LogVisualizer(object):
         self.jct_portfolio_list = logs['jct_portfolio']
         self.initial_collateral_portfolio_list = logs['initial_collateral_portfolio']
         self.initial_collateral_value_list = [self.portfolio_sum(portfolio) for portfolio in self.initial_collateral_portfolio_list]
+        self.additional_issue_list = logs['additional_issue']
         print('Log Visualizer initialized.')
         pprint(logs)
 
@@ -78,4 +79,10 @@ class LogVisualizer(object):
         for idx, security in enumerate(security_list):
             plt.plot(self.date_list, collateral_percentages[security], marker='o', markersize=5, color=color_list[idx], label=security)
         plt.legend(loc=2, fontsize=20)
+
+        date_additional_issue = []
+        for i, x in enumerate(self.additional_issue_list):
+            if x:
+                date_additional_issue.append(self.date_list[i])
+        plt.vlines(date_additional_issue, ymin=0.5, ymax=1.5, color='orange', linestyle='dashed', linewidth=3)
         return collateral_percentages

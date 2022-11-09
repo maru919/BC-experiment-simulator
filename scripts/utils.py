@@ -1,12 +1,11 @@
 from datetime import date
 import math
-from operator import is_
 from .price_data.get_price import GetPriceData
 
 price_getter = GetPriceData()
 
 
-def update_portfolio_price(portfolio, date: date, print_log: bool=False, is_dummy_data: bool=False) -> int:
+def update_portfolio_price(portfolio, date: date, print_log: bool = False, is_dummy_data: bool = False) -> int:
     """
     ポートフォリオに含まれる各有価証券について時価を更新し、トータルの価値を返す
     """
