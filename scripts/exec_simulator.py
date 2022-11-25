@@ -26,6 +26,7 @@ class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
         self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
         self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
         self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
+        self.is_single_adjustment = options['is_single_adjustment'] if 'is_single_adjustment' in options else False
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
         self.start_date = start_date
@@ -97,6 +98,7 @@ class ExecuteAutoAdjustmentTransaction(AutoAdjustmentTransaction):
         self.logs['jct_portfolio'] = [copy.deepcopy(self.jct_portfolio)]
         self.logs['collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
+        self.logs['additional_issue'] = [False]
 
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
         self.logs['initial_collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
