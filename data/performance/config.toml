@@ -1,0 +1,39 @@
+[web3]
+mode = 'WEBSOCKET' # 'HTTP' or 'WEBSOCKET'
+
+[web3.http]
+url = "http://192.168.0.69:8545"
+timeout = 600
+
+[web3.websocket]
+url = "ws://192.168.0.69:8546"
+timeout = 600
+
+[key] 
+file = 'tokenCreatorKey'
+pass = ""
+
+[trading]
+contract = "0x02C7fff37b7D1B991De156836ddA43425C434daA"
+borrower = "0x0000000000000000000000000000000000000000000000000000000000000001"
+lender = "0x0000000000000000000000000000000000000000000000000000000000000002"
+tokenType = "0x3078303030303100000000000000000000000000000000000000000000000000"
+jct = "0x4a43540000000000000000000000000000000000000000000000000000000000"
+threshold = 100000
+
+[file] 
+token = 'token'
+trading = 'trading'
+accept = 'accept'
+update = 'update'
+generate = 'generate'
+
+[tx] 
+chain_id = "0x2614"
+gas = "0xFFFFFF"
+gas_price = 0
+
+[log]
+config = 'log.config'
+file = 'receipts.csv'
+result = "ALL" # 'ALL' or other
