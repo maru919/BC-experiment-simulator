@@ -1,19 +1,20 @@
-import json
+# import json
 import csv
-import os
+# import os
 import sys
-import uuid
-import random
+# import uuid
+# import random
 import toml
-import time
-import math
-from datetime import datetime, timedelta
+# import time
+# import math
+from datetime import datetime
 
 # 共通部分をダウンロード
 import generateCsv
 
 # 設定ファイル読み込み
 CONFIG = toml.load(open('./config.toml', encoding="utf-8"))
+
 
 def createToken(tokenNumber, inputPrice):
     # ヘッダー作成
@@ -34,6 +35,7 @@ def createToken(tokenNumber, inputPrice):
 
     return header, dataList
 
+
 def updateToken(csvFileName, inputPrice):
     header = ['tokenId', 'price', 'updateTime']
     dataList = []
@@ -41,7 +43,7 @@ def updateToken(csvFileName, inputPrice):
     # トークンリストの読み込み
     csvfile = open(csvFileName, 'r', encoding="utf-8")
     reader = csv.reader(csvfile)
-    next(reader) # ヘッダーを読み飛ばす
+    next(reader)  # ヘッダーを読み飛ばす
 
     price = inputPrice * CONFIG['trading']['threshold']
     update_time = int(datetime.now().timestamp())
@@ -59,7 +61,7 @@ def generateToken(csvFileName, addAmount):
     # トークンリストの読み込み
     csvfile = open(csvFileName, 'r', encoding="utf-8")
     reader = csv.reader(csvfile)
-    next(reader) # ヘッダーを読み飛ばす
+    next(reader)  # ヘッダーを読み飛ばす
 
     for data in reader:
         dataList.append([data[0], addAmount, CONFIG['trading']['lender']])
@@ -78,7 +80,7 @@ def generateToken(csvFileName, addAmount):
 #     # トランザクション作成
 #     # タグ
 #     argTag = '0x' + (datetime.now().strftime("%Y%m%d%H%M%S").ljust(64, '0'))
- 
+
 #     start_time = int(datetime.now().timestamp())
 #     finish_time = int(datetime.now().timestamp() + 3600)
 
@@ -93,6 +95,7 @@ def generateToken(csvFileName, addAmount):
 
 #     return header, dataList
 
+
 def createTrading(csvFileName, tradingNumber, tokentypeNumber, stMax, sumPrice):
     header = ['tradingId', 'lender', 'borrowerTokenIds', 'lenderTokenIds', 'borrowerTokenAmounts', 'lenderTokenAmounts', 'startTime', 'finishTime', 'rate', 'adjustmentToken']
     dataList = []
@@ -100,11 +103,11 @@ def createTrading(csvFileName, tradingNumber, tokentypeNumber, stMax, sumPrice):
     # トークンリストの読み込み
     csvfile = open(csvFileName, 'r', encoding="utf-8")
     reader = csv.reader(csvfile)
-    next(reader) # ヘッダーを読み飛ばす
+    next(reader)  # ヘッダーを読み飛ばす
 
     # トランザクション作成
     argTag = '0x' + (datetime.now().strftime("%Y%m%d%H%M%S").ljust(64, '0'))
- 
+
     start_time = int(datetime.now().timestamp())
     finish_time = int(datetime.now().timestamp() + 3600)
 
@@ -115,7 +118,7 @@ def createTrading(csvFileName, tradingNumber, tokentypeNumber, stMax, sumPrice):
     data = []
     price = []
     dataUse = []
-    #csvファイルのデータをループ
+    # csvファイルのデータをループ
     for row in reader:
         data.append(str(row[0]))
         price.append(int(row[2]))
@@ -129,22 +132,23 @@ def createTrading(csvFileName, tradingNumber, tokentypeNumber, stMax, sumPrice):
         tokenList = []
         amountList = []
         tokenList.append(data[fixNumber])
-        amountList.append(int(sumPrice * CONFIG['trading']['threshold'] / tokentypeNumber / price[fixNumber])) 
+        amountList.append(int(sumPrice * CONFIG['trading']['threshold'] / tokentypeNumber / price[fixNumber]))
         dataUse[fixNumber] = dataUse[fixNumber] + 1
         if dataUse[fixNumber] >= stMax:
             fixNumber = fixNumber + 1
 
         for j in range(tokentypeNumber - 1):
             tokenList.append(data[valiableNumber])
-            amountList.append(int(sumPrice * CONFIG['trading']['threshold'] / tokentypeNumber / price[valiableNumber])) 
+            amountList.append(int(sumPrice * CONFIG['trading']['threshold'] / tokentypeNumber / price[valiableNumber]))
             dataUse[valiableNumber] = dataUse[valiableNumber] + 1
             valiableNumber = valiableNumber + 1
             if valiableNumber >= len(data):
                 valiableNumber = fixNumber + 1
-            
-        dataList.append([ trading_id, CONFIG['trading']['lender'] , [CONFIG['trading']['jct']], tokenList,[sumPrice], amountList,start_time,finish_time,rate, CONFIG['trading']['jct']])
+
+        dataList.append([trading_id, CONFIG['trading']['lender'], [CONFIG['trading']['jct']], tokenList, [sumPrice], amountList, start_time, finish_time, rate, CONFIG['trading']['jct']])
 
     return header, dataList
+
 
 def acceptTrading(csvFileName):
     header = ['tradingId']
@@ -153,7 +157,7 @@ def acceptTrading(csvFileName):
     # トークンリストの読み込み
     csvfile = open(csvFileName, 'r', encoding="utf-8")
     reader = csv.reader(csvfile)
-    next(reader) # ヘッダーを読み飛ばす
+    next(reader)  # ヘッダーを読み飛ばす
 
     for data in reader:
         # テスタデータ用パラメータ作成
@@ -161,23 +165,24 @@ def acceptTrading(csvFileName):
 
     return header, dataList
 
-# 1:function name 
+
+# 1:function name
 # 2以降:関数に応じた引数
 if __name__ == "__main__":
     args = sys.argv
     functionName = args[1]
 
     if functionName == 'createToken':
-        header,dataList = createToken(int(args[2]), int(args[3]))
+        header, dataList = createToken(int(args[2]), int(args[3]))
     elif functionName == 'updateToken':
-        header,dataList = updateToken(args[2], int(args[3]))
+        header, dataList = updateToken(args[2], int(args[3]))
     elif functionName == 'generateToken':
-        header,dataList = generateToken(args[2], int(args[3]))
+        header, dataList = generateToken(args[2], int(args[3]))
     elif functionName == 'createTrading':
-        header,dataList = createTrading(args[2], int(args[3]), int(args[4]), int(args[5]), int(args[6]))
+        header, dataList = createTrading(args[2], int(args[3]), int(args[4]), int(args[5]), int(args[6]))
     elif functionName == 'acceptTrading':
-        header,dataList = acceptTrading(args[2])
+        header, dataList = acceptTrading(args[2])
     else:
         sys.exit()
 
-    generateCsv.createCsv(functionName,functionName,header,dataList)
+    generateCsv.createCsv(functionName, functionName, header, dataList)

@@ -1,22 +1,22 @@
 import json
 import csv
 import os
-import sys
-import uuid
-import random
+# import sys
+# import uuid
+# import random
 import toml
-import time
-import math
-from datetime import datetime, timedelta
-from eth_account import Account
+# import time
+# import math
+# from datetime import datetime, timedelta
+# from eth_account import Account
 from web3 import Web3
-from web3._utils.events import get_event_data
-from web3._utils.abi import (
-    filter_by_type
-)
-from eth_utils import (
-    event_abi_to_log_topic,
-)
+# from web3._utils.events import get_event_data
+# from web3._utils.abi import (
+#     filter_by_type
+# )
+# from eth_utils import (
+#     event_abi_to_log_topic,
+# )
 
 # 設定ファイル読み込み
 CONFIG = toml.load(open('./config.toml', encoding="utf-8"))
@@ -36,16 +36,17 @@ with open(abiName, encoding="utf-8") as f:
 CONTRACT_ADDRESS = W3.toChecksumAddress(CONFIG['trading']['contract'])
 CONTRACT = W3.eth.contract(CONTRACT_ADDRESS, abi=abi)
 
+
 def createCsv(filename, functionName, dataHeader, dataList):
     # 作成したリストをcsvファイルに書き込む
-    with open('./csv/'+filename+'.csv', "w") as csvData:
-        writerData = csv.writer(csvData, lineterminator='\n') # 改行コード（\n）を指定しておく
-        writerData.writerow(['data', 'value', 'to']) # ヘッダー作成
+    with open('./csv/' + filename + '.csv', "w") as csvData:
+        writerData = csv.writer(csvData, lineterminator='\n')  # 改行コード（\n）を指定しておく
+        writerData.writerow(['data', 'value', 'to'])  # ヘッダー作成
 
         # 作成したテストデータの変数リストをcsvファイルに書き込む
-        with open('./csv/'+filename+'_decode.csv', "w") as csvDecode:
-            writerDecode = csv.writer(csvDecode, lineterminator='\n') # 改行コード（\n）を指定しておく
-            writerDecode.writerow(dataHeader) # ヘッダー作成
+        with open('./csv/' + filename + '_decode.csv', "w") as csvDecode:
+            writerDecode = csv.writer(csvDecode, lineterminator='\n')  # 改行コード（\n）を指定しておく
+            writerDecode.writerow(dataHeader)  # ヘッダー作成
 
             for data in dataList:
                 # data作成

@@ -5,23 +5,23 @@ import csv
 import json
 import logging
 import logging.config
-import os.path
+# import os.path
 import sys
 import time
 import traceback
 
 import toml
 from eth_account import Account
-from eth_utils import event_abi_to_log_topic
+# from eth_utils import event_abi_to_log_topic
 from web3 import Web3
-from web3._utils.abi import filter_by_type
-from web3._utils.events import get_event_data
+# from web3._utils.abi import filter_by_type
+# from web3._utils.events import get_event_data
 # 並列処理用
 from multiprocessing import Pool
 import multiprocessing as multi
 
 # 設定ファイル読み込み
-CONFIG = toml.load(open('config.toml',encoding="utf-8"))
+CONFIG = toml.load(open('config.toml', encoding="utf-8"))
 
 # ログ設定
 logging.config.fileConfig(CONFIG['log']['config'])
@@ -34,6 +34,7 @@ if CONFIG['web3']['mode'] == 'HTTP':
 elif CONFIG['web3']['mode'] == 'WEBSOCKET':
     W3 = Web3(Web3.WebsocketProvider(CONFIG['web3']['websocket']['url'], websocket_kwargs={'timeout': CONFIG['web3']['websocket']['timeout']}))
 
+
 def readKeyFile(keyFileName, passwordCode):
     '''
     キーファイルから情報を取得
@@ -42,15 +43,15 @@ def readKeyFile(keyFileName, passwordCode):
     # キーファイルよる情報を取得する
     with open(keyFileName, encoding="utf-8") as f:
         data = json.load(f)
-    
+
     private_key = Web3.toHex(Account.decrypt(data, passwordCode))
     account = Account.privateKeyToAccount(private_key)
     address = account.address
-    
+
     return private_key, address
 
 
-def createTransaction(private_key, address, reader,timedata):
+def createTransaction(private_key, address, reader, timedata):
     """
     トランザクション生成
     """
@@ -63,33 +64,34 @@ def createTransaction(private_key, address, reader,timedata):
 
     # トランザクション格納用配列
     rawTransaction = []
-    
+
     for Data in reader:
         # テストデータと設定ファイルからトランザクション作成
         transaction = {
-                'chainId': CONFIG['tx']['chain_id'],
-                'data' : Data[0],
-                'nonce': nonce,
-                'gas' : CONFIG['tx']['gas'],
-                'gasPrice': CONFIG['tx']['gas_price'],
-                'value': int(Data[1]),
-                'to' : Data[2]
-            }
+            'chainId': CONFIG['tx']['chain_id'],
+            'data': Data[0],
+            'nonce': nonce,
+            'gas': CONFIG['tx']['gas'],
+            'gasPrice': CONFIG['tx']['gas_price'],
+            'value': int(Data[1]),
+            'to': Data[2]
+        }
 
         nonce += 1
         signed = Account.signTransaction(transaction, private_key)    # 署名
-        rawTransaction.append(signed.rawTransaction) # 組み立てたトランザクションをリストに追加
+        rawTransaction.append(signed.rawTransaction)  # 組み立てたトランザクションをリストに追加
 
     logging.log(20, "End CreateTransaction.")
     timedata['endCretaeTx'] = time.time()
 
-    return rawTransaction,timedata
+    return rawTransaction, timedata
 
 
 def sendTransactionmulti(transaction):
     return W3.eth.sendRawTransaction(transaction)
 
-def sendTransaction(transactions,timedata):
+
+def sendTransaction(transactions, timedata):
     """
     トランザクション送信
     """
@@ -123,12 +125,12 @@ def sendTransaction(transactions,timedata):
     last_receipt_info['status'] = last_receipt.status
 
     # 最終レシートのステータスを表示
-    logging.log(20, "last receipt:"+json.dumps(last_receipt_info))
+    logging.log(20, "last receipt:" + json.dumps(last_receipt_info))
 
     logging.log(20, "End Get Last Receipt.")
     timedata['endGetTx'] = time.time()
 
-    #result ALLの場合、レシート一覧の情報を保存
+    # result ALLの場合、レシート一覧の情報を保存
     if CONFIG['log']['result'] == "ALL":
         logging.log(20, "Start Get All Receipt.")
         for result in results:
@@ -138,8 +140,9 @@ def sendTransaction(transactions,timedata):
             receipt_info['status'] = receipt.status
             receipts.append(receipt_info)
         logging.log(20, "End Get All Receipt.")
-    
-    return receipts,timedata
+
+    return receipts, timedata
+
 
 # 1:CSVファイルパス, 2:keyファイルパス
 if __name__ == "__main__":
@@ -150,22 +153,22 @@ if __name__ == "__main__":
         # テストデータの読み込み
         csvfile = open(args[1], 'r', encoding="utf-8")
         reader = csv.reader(csvfile)
-        next(reader) # ヘッダーを読み飛ばす
+        next(reader)  # ヘッダーを読み飛ばす
 
         # 秘密鍵とアドレスを取得する
         private_key, address = readKeyFile(args[2], CONFIG['key']['pass'])
 
-        #トランザクション生成
-        transactions,timedata = createTransaction(private_key, address, reader,timedata)
+        # トランザクション生成
+        transactions, timedata = createTransaction(private_key, address, reader, timedata)
         csvfile.close()
 
         # トランザクション送信
-        receipts,timedata = sendTransaction(transactions,timedata)
+        receipts, timedata = sendTransaction(transactions, timedata)
 
         # トランザクション送信開始時間と最終レシート受け取り時間の差分を計算
-        logging.log(20,"EndGetTime - StartSendTime = " + str(timedata['endGetTx'] - timedata['startSendTx']))
+        logging.log(20, "EndGetTime - StartSendTime = " + str(timedata['endGetTx'] - timedata['startSendTx']))
 
-        #result ALLの場合、レシート一覧をcsvに出力する。
+        # result ALLの場合、レシート一覧をcsvに出力する。
         if CONFIG['log']['result'] == "ALL":
             with open(CONFIG['log']['file'], "w", encoding="utf-8", newline="") as f:
                 receiptWriter = csv.DictWriter(f, fieldnames=['hash', 'status'])
