@@ -103,7 +103,7 @@ class JCTVariableTransaction(object):
             pprint(log)
 
 
-class AutoAdjustmentTransaction(object):
+class AutoAdjustmentTransactionBase(object):
     """
     JCT＝日本円、のような形で扱い、担保としてSTも差し入れられるようにする
     これによって双方がSTをやり取りするような形になる
@@ -122,7 +122,7 @@ class AutoAdjustmentTransaction(object):
         self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
         self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
         self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
-        self.is_single_adjustment = options['is_single_adjustment'] if 'is_single_adjustment' in options else False
+        self.margin_call_threshold = options['margin_call_threshold'] if 'margin_call_threshold' in options else 0.0
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
 
@@ -185,6 +185,11 @@ class AutoAdjustmentTransaction(object):
         if self.print_log:
             pprint(self.logs)
 
+
+class AutoAdjustmentTransactionSingle(AutoAdjustmentTransactionBase):
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], options: TransactionOption) -> None:
+        super().__init__(jct_portfolio, st_portfolio, start_date, options)
+
     def check_diff_and_margin_call(self, date: Union[str, date]) -> None:
         """
         JCT, STそれぞれの時価更新を行い、差分の算出、価格調整を行う
@@ -202,8 +207,10 @@ class AutoAdjustmentTransaction(object):
         # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
         collateral_diff = collateral_total_value - collateral_sum
 
-        # １種のトークンのみで価格調整を行う場合
-        if (self.is_single_adjustment):
+        if abs(collateral_diff) < collateral_total_value * self.margin_call_threshold:
+            print("price diff is so little that auto margin call is cancelled.")
+        else:
+            # １種のトークンのみで価格調整を行う
             print("adjust with a single token")
             code, collateral = sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True)[0]
             if (collateral_diff > 0):
@@ -239,7 +246,45 @@ class AutoAdjustmentTransaction(object):
                     self.jct_portfolio[code]['num'] += collateral_num
                     self.logs['additional_issue'].append(True)
 
+        self.logs['date'].append(date)
+        self.logs['st_total_value'].append(st_total_value)
+        self.logs['jct_total_value'].append(jct_total_value)
+        self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
+        self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
+        self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+
+        update_portfolio_price(self.initial_collateral_portfolio, date)
+        self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
+
+        if self.print_log:
+            print('OK. collateral is moved.')
+
+
+class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], options: TransactionOption) -> None:
+        super().__init__(jct_portfolio, st_portfolio, start_date, options)
+
+    def check_diff_and_margin_call(self, date: Union[str, date]) -> None:
+        """
+        JCT, STそれぞれの時価更新を行い、差分の算出、価格調整を行う
+        差し入れている担保の優先寺度に従って差し入れていくことで、複数の担保がある際の
+        価格調整用担保の追加差し入れのような事態を防ぐ
+        """
+        st_total_value = update_portfolio_price(self.st_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+        jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+        collateral_sum = update_portfolio_price(self.collateral_portfolio, date, is_dummy_data=self.is_dummy_data)
+
+        # 預け入れるべき担保額
+        collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
+        self.necessary_collateral_value = collateral_total_value
+
+        # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
+        collateral_diff = collateral_total_value - collateral_sum
+
+        if abs(collateral_diff) < collateral_total_value * self.margin_call_threshold:
+            print("price diff is so little that auto margin call is cancelled.")
         else:
+            # 複数トークンで価格調整を行う
             if (collateral_diff > 0):
                 # borrower -> lender への担保追加差し入れなのでシンプルに優先度が高い順に差し入れ
                 print(f'from {self.borrower} to {self.lender}')

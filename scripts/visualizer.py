@@ -1,7 +1,6 @@
 """
 シミュレーション結果を可視化するためのクラス
 """
-from pprint import pprint
 from typing import List
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -28,7 +27,6 @@ class LogVisualizer(object):
         self.initial_collateral_value_list = [self.portfolio_sum(portfolio) for portfolio in self.initial_collateral_portfolio_list]
         self.additional_issue_list = logs['additional_issue']
         print('Log Visualizer initialized.')
-        pprint(logs)
 
     @staticmethod
     def portfolio_sum(portfolio: dict) -> int:
@@ -49,7 +47,8 @@ class LogVisualizer(object):
         ax1_2.plot(self.date_list, self.necessary_collateral_value_list, marker='o', markersize=5, color='blue', label='Adjusted Collateral Value')
         ax1_2.set_ylabel('Adjusted Collateral Value', fontsize=20, fontname="Hiragino Sans")
         ax1_2.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-        ax1.set_ylim(ax1_2.get_ylim())
+        # ax1.set_ylim(ax1_2.get_ylim())
+        ax1_2.set_ylim(ax1.get_ylim())
         handler1, label1 = ax1.get_legend_handles_labels()
         handler2, label2 = ax1_2.get_legend_handles_labels()
 
@@ -64,7 +63,7 @@ class LogVisualizer(object):
     def calc_collateral_percentage(self) -> None:
         # 差し入れている担保の割合の推移
         color_list = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
-        security_list = self.initial_collateral_portfolio_list[0].keys()
+        security_list = self.collateral_portfolio_list[-1].keys()
         collateral_percentages = {}
         for security in security_list:
             collateral_percentages[security] = []
@@ -84,5 +83,5 @@ class LogVisualizer(object):
         for i, x in enumerate(self.additional_issue_list):
             if x:
                 date_additional_issue.append(self.date_list[i])
-        plt.vlines(date_additional_issue, ymin=0.5, ymax=1.5, color='orange', linestyle='dashed', linewidth=3)
+        plt.vlines(date_additional_issue, ymin=0.5, ymax=4, color='orange', linestyle='dashed', linewidth=3)
         return collateral_percentages
