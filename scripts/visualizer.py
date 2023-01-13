@@ -1,13 +1,14 @@
 """
 シミュレーション結果を可視化するためのクラス
 """
-from typing import List
+from typing import List, Optional
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 
 
 class LogVisualizer(object):
-    def __init__(self, logs: List[dict]) -> None:
+    def __init__(self, logs: List[dict], save_path: Optional[str] = None) -> None:
         # ex.)
         # logs = [{
         # 	date: [],
@@ -16,6 +17,9 @@ class LogVisualizer(object):
         # 	jct_portfolio: [],
         # 	necessary_collateral_value: [],
         # 	collateral_portfolio: []
+        #   collateral_sum: []
+        #   borrower_additional_issue: []
+        #   lender_additional_issue: []
         # }]
         self.logs = logs
         self.date_list = logs['date']
@@ -25,7 +29,12 @@ class LogVisualizer(object):
         self.jct_portfolio_list = logs['jct_portfolio']
         self.initial_collateral_portfolio_list = logs['initial_collateral_portfolio']
         self.initial_collateral_value_list = [self.portfolio_sum(portfolio) for portfolio in self.initial_collateral_portfolio_list]
-        self.additional_issue_list = logs['additional_issue']
+        self.borrower_additional_issue_list = logs['borrower_additional_issue']
+        self.lender_additional_issue_list = logs['lender_additional_issue']
+        # self.save_path = save_path
+
+        if save_path:
+            np.save(save_path, logs)
         print('Log Visualizer initialized.')
 
     @staticmethod
@@ -79,9 +88,15 @@ class LogVisualizer(object):
             plt.plot(self.date_list, collateral_percentages[security], marker='o', markersize=5, color=color_list[idx], label=security)
         plt.legend(loc=2, fontsize=20)
 
-        date_additional_issue = []
-        for i, x in enumerate(self.additional_issue_list):
+        date_lender_additional_issue = []
+        for i, x in enumerate(self.lender_additional_issue_list):
             if x:
-                date_additional_issue.append(self.date_list[i])
-        plt.vlines(date_additional_issue, ymin=0.5, ymax=4, color='orange', linestyle='dashed', linewidth=3)
+                date_lender_additional_issue.append(self.date_list[i])
+        plt.vlines(date_lender_additional_issue, ymin=-20, ymax=20, color='orange', linestyle='solid', linewidth=1)
+
+        # date_borrower_additional_issue = []
+        # for i, x in enumerate(self.borrower_additional_issue_list):
+        #     if x:
+        #         date_borrower_additional_issue.append(self.date_list[i])
+        # plt.vlines(date_borrower_additional_issue, ymin=0.5, ymax=4, color='cyan', linestyle='solid', linewidth=1)
         return collateral_percentages

@@ -22,4 +22,5 @@ TransactionOption = TypedDict('TransactionOption', {
     'is_dummy_data': Optional[bool],
     'is_reverse': Optional[bool],
     'margin_call_threshold': Optional[float],
+    'is_manual': Optional[bool],
 })

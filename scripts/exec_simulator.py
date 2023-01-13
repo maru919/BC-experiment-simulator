@@ -26,6 +26,7 @@ class ExecuteAutoAdjustmentTransactionSingle(AutoAdjustmentTransactionSingle):
         self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
         self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
         self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
+        self.is_manual = options['is_manual'] if 'is_manual' in options else False
         self.margin_call_threshold = options['margin_call_threshold'] if 'margin_call_threshold' in options else 0.0
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
@@ -84,13 +85,16 @@ class ExecuteAutoAdjustmentTransactionSingle(AutoAdjustmentTransactionSingle):
         if collateral_total_value > 0:
             raise ValueError(f'Initial JCT is insufficient!! {self.jct_portfolio}')
 
+        collateral_sum = update_portfolio_price(self.collateral_portfolio, self.start_date, self.print_log, is_dummy_data=self.is_dummy_data)
         self.logs['date'] = [self.start_date]
         self.logs['st_total_value'] = [st_total_value]
         self.logs['jct_total_value'] = [jct_total_value]
         self.logs['jct_portfolio'] = [copy.deepcopy(self.jct_portfolio)]
         self.logs['collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
+        self.logs['collateral_sum'] = [collateral_sum]
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
-        self.logs['additional_issue'] = [False]
+        self.logs['lender_additional_issue'] = [False]
+        self.logs['borrower_additional_issue'] = [False]
 
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
         self.logs['initial_collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
@@ -181,13 +185,16 @@ class ExecuteAutoAdjustmentTransactionMulti(AutoAdjustmentTransactionMulti):
         if collateral_total_value > 0:
             raise ValueError(f'Initial JCT is insufficient!! {self.jct_portfolio}')
 
+        collateral_sum = update_portfolio_price(self.collateral_portfolio, self.start_date, self.print_log, is_dummy_data=self.is_dummy_data)
         self.logs['date'] = [self.start_date]
         self.logs['st_total_value'] = [st_total_value]
         self.logs['jct_total_value'] = [jct_total_value]
         self.logs['jct_portfolio'] = [copy.deepcopy(self.jct_portfolio)]
         self.logs['collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
+        self.logs['collateral_sum'] = [collateral_sum]
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
-        self.logs['additional_issue'] = [False]
+        self.logs['lender_additional_issue'] = [False]
+        self.logs['borrower_additional_issue'] = [False]
 
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
         self.logs['initial_collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]

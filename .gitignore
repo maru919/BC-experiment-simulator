@@ -14,4 +14,4 @@ __pycache__/
 debug*
 
 # data
-data
+data/

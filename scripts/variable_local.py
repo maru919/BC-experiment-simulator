@@ -122,6 +122,7 @@ class AutoAdjustmentTransactionBase(object):
         self.auto_deposit = options['auto_deposit'] if 'auto_deposit' in options else True
         self.is_dummy_data = options['is_dummy_data'] if 'is_dummy_data' in options else False
         self.is_reverse = options['is_reverse'] if 'is_reverse' in options else False
+        self.is_manual = options['is_manual'] if 'is_manual' in options else False
         self.margin_call_threshold = options['margin_call_threshold'] if 'margin_call_threshold' in options else 0.0
         self.collateral_portfolio: Dict[str, PortfolioWithPriorityItem] = {}
         self.logs: Dict[str, list] = {}
@@ -169,13 +170,16 @@ class AutoAdjustmentTransactionBase(object):
         if collateral_total_value > 0:
             raise ValueError(f'Initial JCT is insufficient!! {self.jct_portfolio}')
 
+        collateral_sum = update_portfolio_price(self.collateral_portfolio, start_date, self.print_log, is_dummy_data=self.is_dummy_data)
         self.logs['date'] = [start_date]
         self.logs['st_total_value'] = [st_total_value]
         self.logs['jct_total_value'] = [jct_total_value]
         self.logs['jct_portfolio'] = [copy.deepcopy(self.jct_portfolio)]
         self.logs['collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
+        self.logs['collateral_sum'] = [collateral_sum]
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
-        self.logs['additional_issue'] = [False]
+        self.logs['lender_additional_issue'] = [False]
+        self.logs['borrower_additional_issue'] = [False]
 
         # 初日のcollateral_portfolioを比較用に保管しておく
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
@@ -201,34 +205,83 @@ class AutoAdjustmentTransactionSingle(AutoAdjustmentTransactionBase):
         collateral_sum = update_portfolio_price(self.collateral_portfolio, date, is_dummy_data=self.is_dummy_data)
 
         # 預け入れるべき担保額
-        collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
-        self.necessary_collateral_value = collateral_total_value
+        necessary_collateral_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
+        self.necessary_collateral_value = necessary_collateral_value
 
         # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
-        collateral_diff = collateral_total_value - collateral_sum
+        collateral_diff = necessary_collateral_value - collateral_sum
 
-        if abs(collateral_diff) < collateral_total_value * self.margin_call_threshold:
+        if abs(collateral_diff) < necessary_collateral_value * self.margin_call_threshold:
             print("price diff is so little that auto margin call is cancelled.")
+        elif self.is_manual:
+            # manual手続の場合、毎日手動で振もしくはJSCCを通じて）振込を行うとし、翌日のマージンコール前までに追加の差し入れが行われていると仮定する
+            # １種のトークンのみで価格調整を行う
+            print("adjust by single token manually.")
+            code, collateral = sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True)[0]
+
+            self.logs['date'].append(date)
+            self.logs['st_total_value'].append(st_total_value)
+            self.logs['jct_total_value'].append(jct_total_value)
+            self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
+            self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
+            self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+            self.logs['collateral_sum'] = [collateral_sum]
+            self.logs['lender_additional_issue'].append(True)
+            self.logs['borrower_additional_issue'].append(True)
+
+            update_portfolio_price(self.initial_collateral_portfolio, date)
+            self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
+
+            if (collateral_diff > 0):
+                print(f'from {self.borrower} to {self.lender}')
+                collateral_num = math.ceil(collateral_diff / collateral['price'])
+                if collateral_num <= self.jct_portfolio[code]['num']:
+                    self.collateral_portfolio[code]['num'] += collateral_num
+                    self.jct_portfolio[code]['num'] -= collateral_num
+                    print("@@@@@@@@@@@@@@price adjustment will be done by tomorrow@@@@@@@@@@@@@@")
+                else:
+                    # 足りない場合はborrowerが追加発行を行う
+                    print(f"!!!!additional token issuing by {self.borrower}!!!!")
+                    self.collateral_portfolio[code]['num'] += collateral_num
+                    self.jct_portfolio[code]['num'] = 0
+            else:
+                print(f'from {self.lender} to {self.borrower}')
+                collateral_diff = abs(collateral_diff)
+                collateral_num = math.ceil(collateral_diff / collateral['price'])
+                if collateral_num <= self.collateral_portfolio[code]['num']:
+                    self.collateral_portfolio[code]['num'] -= collateral_num
+                    self.jct_portfolio[code]['num'] += collateral_num
+                    print("@@@@@@@@@@@@@@price adjustment will be done by tomorrow@@@@@@@@@@@@@@")
+                else:
+                    # 足りない場合はlenderが追加発行を行う
+                    # その日はとりあえず保有している分を差し入れ、残りは翌日のマージンコールまでに追加差し入れするものとする
+                    print(f"!!!!!!!!!!!!additional token issuing by {self.lender}!!!!!!!!!!!!!!")
+                    self.jct_portfolio[code]['num'] += collateral_num
+                    self.collateral_portfolio[code]['num'] = 0
+
+            print('--------------------DONE(manual)------------------------')
+            return
         else:
             # １種のトークンのみで価格調整を行う
-            print("adjust with a single token")
+            print("adjust by single token.")
             code, collateral = sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True)[0]
             if (collateral_diff > 0):
                 print(f'from {self.borrower} to {self.lender}')
-                # collateral_value = collateral['price'] * collateral['num']
                 collateral_num = math.ceil(collateral_diff / collateral['price'])
                 if collateral_num <= self.jct_portfolio[code]['num']:
                     self.collateral_portfolio[code]['num'] += collateral_num
                     self.jct_portfolio[code]['num'] -= collateral_num
                     print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
-                    self.logs['additional_issue'].append(False)
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(False)
                 else:
                     # 足りない場合はborrowerが追加発行を行う
                     print("collateral num is short@@@@@@@@@")
                     print(f"!!!!additional token issuing by {self.borrower}!!!!")
                     self.collateral_portfolio[code]['num'] += collateral_num
                     self.jct_portfolio[code]['num'] = 0
-                    self.logs['additional_issue'].append(True)
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(True)
             else:
                 print(f'from {self.lender} to {self.borrower}')
                 collateral_diff = abs(collateral_diff)
@@ -237,14 +290,30 @@ class AutoAdjustmentTransactionSingle(AutoAdjustmentTransactionBase):
                     self.collateral_portfolio[code]['num'] -= collateral_num
                     self.jct_portfolio[code]['num'] += collateral_num
                     print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
-                    self.logs['additional_issue'].append(False)
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(False)
                 else:
                     # 足りない場合はlenderが追加発行を行う
-                    print("collateral num is slightly short@@@@")
-                    print(f"!!!additional token issuing by {self.lender}!!!!")
+                    # その日はとりあえず保有している分を差し入れ、残りは翌日のマージンコールまでに追加差し入れするものとする
+                    print(f"!!!!!!!!!!!!additional token issuing by {self.lender}!!!!!!!!!!!!!!")
+                    shortage_num = collateral_num - self.collateral_portfolio[code]['num']
+                    self.jct_portfolio[code]['num'] += self.collateral_portfolio[code]['num']
                     self.collateral_portfolio[code]['num'] = 0
-                    self.jct_portfolio[code]['num'] += collateral_num
-                    self.logs['additional_issue'].append(True)
+
+                    self.logs['lender_additional_issue'].append(True)
+                    self.logs['borrower_additional_issue'].append(False)
+                    self.logs['date'].append(date)
+                    self.logs['st_total_value'].append(st_total_value)
+                    self.logs['jct_total_value'].append(jct_total_value)
+                    self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
+                    self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
+                    self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+                    self.logs['collateral_sum'].append(collateral_sum)
+                    update_portfolio_price(self.initial_collateral_portfolio, date)
+                    self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
+                    print(f'--------------------DONE. {self.lender} adds {shortage_num} tokens by tomorrow.------------------------')
+                    self.jct_portfolio[code]['num'] += shortage_num
+                    return
 
         self.logs['date'].append(date)
         self.logs['st_total_value'].append(st_total_value)
@@ -252,12 +321,13 @@ class AutoAdjustmentTransactionSingle(AutoAdjustmentTransactionBase):
         self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
         self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
         self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
-
+        self.logs['collateral_sum'].append(collateral_sum)
         update_portfolio_price(self.initial_collateral_portfolio, date)
         self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
+        print('--------------------OK. collateral is moved.------------------------')
 
         if self.print_log:
-            print('OK. collateral is moved.')
+            pprint(self.collateral_portfolio)
 
 
 class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
@@ -275,13 +345,13 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
         collateral_sum = update_portfolio_price(self.collateral_portfolio, date, is_dummy_data=self.is_dummy_data)
 
         # 預け入れるべき担保額
-        collateral_total_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
-        self.necessary_collateral_value = collateral_total_value
+        necessary_collateral_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
+        self.necessary_collateral_value = necessary_collateral_value
 
         # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
-        collateral_diff = collateral_total_value - collateral_sum
+        collateral_diff = necessary_collateral_value - collateral_sum
 
-        if abs(collateral_diff) < collateral_total_value * self.margin_call_threshold:
+        if abs(collateral_diff) < necessary_collateral_value * self.margin_call_threshold:
             print("price diff is so little that auto margin call is cancelled.")
         else:
             # 複数トークンで価格調整を行う
@@ -290,11 +360,11 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
                 print(f'from {self.borrower} to {self.lender}')
                 for code, collateral in sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True):  # type: ignore
                     pprint(f'{code}: {collateral}')
-                    collateral_value = collateral['price'] * collateral['num']
+                    collateral_value = math.floor(collateral['price'] * collateral['num'])
                     if collateral_value >= collateral_diff:
                         collateral_num = math.ceil(collateral_diff / collateral['price'])
-                        if (collateral_num > self.jct_portfolio[code]['num']):
-                            continue
+                        # if (collateral_num > self.jct_portfolio[code]['num']):
+                        #     continue
 
                         if code in self.collateral_portfolio:
                             self.collateral_portfolio[code]['num'] += collateral_num
@@ -307,11 +377,11 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
                             }
 
                         self.jct_portfolio[code]['num'] -= collateral_num
+                        collateral_diff = 0
                         print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
-                        self.logs['additional_issue'].append(False)
                         break
 
-                    # to next collateral
+                    # move all and go to the next token
                     if code in self.collateral_portfolio:
                         self.collateral_portfolio[code]['num'] += collateral['num']
                     else:
@@ -324,23 +394,37 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
                     collateral_diff -= collateral['price'] * collateral['num']
                     self.jct_portfolio[code]['num'] = 0
 
+                if collateral_diff > 0:
+                    # 足りない場合はborrowerが追加発行を行う
+                    print("collateral num is short@@@@@@@@@")
+                    print(f"!!!!additional token issuing by {self.borrower}!!!!")
+                    prior_code, prior_collateral = sorted(self.jct_portfolio.items(), key=lambda x: x[1]['priority'], reverse=True)[0]
+                    self.collateral_portfolio[prior_code]['num'] += math.ceil(math.ceil(collateral_diff / prior_collateral['price']))
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(True)
+                else:
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(False)
+
             else:
                 # lender -> borrower への担保返還なので価格調整用の優先度が低い順に返還(option['is_reverse'])
                 collateral_diff = abs(collateral_diff)
                 print(f'from {self.lender} to {self.borrower}')
                 for code, collateral in sorted(self.collateral_portfolio.items(), key=lambda x: x[1]['priority'], reverse=self.is_reverse):  # type: ignore
                     pprint(f'{code}: {collateral}')
-                    collateral_value = collateral['price'] * collateral['num']
+                    collateral_value = math.floor(collateral['price'] * collateral['num'])
                     if collateral_value >= collateral_diff:
                         collateral_num = math.ceil(collateral_diff / collateral['price'])
-                        if (collateral_num > self.collateral_portfolio[code]['num']):
-                            continue
+                        # if (collateral_num > self.collateral_portfolio[code]['num']):
+                        #     continue
 
                         self.jct_portfolio[code]['num'] += collateral_num
                         self.collateral_portfolio[code]['num'] -= collateral_num
 
                         print("@@@@@@@@@@@@@@price adjustment is successfully done@@@@@@@@@@@@@@")
-                        self.logs['additional_issue'].append(False)
+                        self.logs['lender_additional_issue'].append(False)
+                        self.logs['borrower_additional_issue'].append(False)
+                        collateral_diff = 0
                         break
 
                     # to next collateral
@@ -348,15 +432,20 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
                     collateral_diff -= collateral['price'] * collateral['num']
                     self.collateral_portfolio[code]['num'] = 0
 
+                if collateral_diff > 0:
+                    raise ValueError(f'{self.lender} does not have enough collaterals. Bugs exist.')
+
         self.logs['date'].append(date)
         self.logs['st_total_value'].append(st_total_value)
         self.logs['jct_total_value'].append(jct_total_value)
         self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
         self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
         self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+        self.logs['collateral_sum'].append(collateral_sum)
 
         update_portfolio_price(self.initial_collateral_portfolio, date)
         self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
 
         if self.print_log:
+            pprint(self.collateral_portfolio)
             print('OK. collateral is moved.')
