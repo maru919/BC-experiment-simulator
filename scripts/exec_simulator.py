@@ -95,6 +95,7 @@ class ExecuteAutoAdjustmentTransactionSingle(AutoAdjustmentTransactionSingle):
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
         self.logs['lender_additional_issue'] = [False]
         self.logs['borrower_additional_issue'] = [False]
+        self.logs['has_done_margincall'] = [True]
 
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
         self.logs['initial_collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
@@ -195,6 +196,7 @@ class ExecuteAutoAdjustmentTransactionMulti(AutoAdjustmentTransactionMulti):
         self.logs['necessary_collateral_value'] = [self.necessary_collateral_value]
         self.logs['lender_additional_issue'] = [False]
         self.logs['borrower_additional_issue'] = [False]
+        self.logs['has_done_margincall'] = [True]
 
         self.initial_collateral_portfolio = copy.deepcopy(self.collateral_portfolio)
         self.logs['initial_collateral_portfolio'] = [copy.deepcopy(self.collateral_portfolio)]
