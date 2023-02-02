@@ -8,7 +8,8 @@
 代わりに[yfinance](https://github.com/ranaroussi/yfinance) を利用してデータを取得。
 
 ## Usage
-Refer to notebooks in  `/sandbox`.
+See notebooks in `/sandbox`.
+Experiments for the thesis were executed in `/sandbox/experiments`.
 
 ### ~~シナリオ②（JCT 可変複数裏付け）~~
 `VariableLocalTransaction()`クラスを利用して取引を再現。
