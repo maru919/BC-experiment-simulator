@@ -14,7 +14,4 @@ __pycache__/
 debug*
 
 # data
-data/data202212/create_trade_2.csv
-data/data202212/create_trade_3.csv
-data/data202212/create_trade_4.csv
-data/sample/
+data/
