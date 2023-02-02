@@ -3,6 +3,8 @@
 
 ## Financial data
 株価データは [pandas-datareader](https://github.com/pydata/pandas-datareader) を利用して Yahoo! Finance から取得。
+License要確認。
+
 ### 追記@2021-07-07
 現在 `pandas-datareader` は Yahoo! Finance の API アクセス制限？によってアクセスが正常にできない様子。
 代わりに[yfinance](https://github.com/ranaroussi/yfinance) を利用してデータを取得。
