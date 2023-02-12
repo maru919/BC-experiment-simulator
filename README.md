@@ -30,5 +30,5 @@ Experiments for the thesis were executed in `/sandbox/experiments`.
 ## Sandbox
 検証・シミュレーション用の .ipynb ファイルなどは `sandbox` 以下に配置。
 
-## 注記
+## ⚠️注記
 修論提出直前に修正した箇所は煩雑になっているので時間があればリファクタします。
