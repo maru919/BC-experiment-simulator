@@ -457,6 +457,7 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
 
             else:
                 # lender -> borrower への担保返還なので価格調整用の優先度が低い順に返還(option['is_reverse'])
+                print(f'is_reverse: {self.is_reverse}')
                 collateral_diff = abs(collateral_diff)
                 print(f'from {self.lender} to {self.borrower}')
                 for code, collateral in sorted(self.collateral_portfolio.items(), key=lambda x: x[1]['priority'], reverse=self.is_reverse):  # type: ignore
@@ -483,6 +484,91 @@ class AutoAdjustmentTransactionMulti(AutoAdjustmentTransactionBase):
 
                 if collateral_diff > 0:
                     raise ValueError(f'{self.lender} does not have enough collaterals. Bugs exist.')
+
+        self.logs['date'].append(date)
+        self.logs['st_total_value'].append(st_total_value)
+        self.logs['jct_total_value'].append(jct_total_value)
+        self.logs['jct_portfolio'].append(copy.deepcopy(self.jct_portfolio))
+        self.logs['necessary_collateral_value'].append(self.necessary_collateral_value)
+        self.logs['collateral_portfolio'].append(copy.deepcopy(self.collateral_portfolio))
+        self.logs['collateral_sum'].append(collateral_sum)
+
+        update_portfolio_price(self.initial_collateral_portfolio, date)
+        self.logs['initial_collateral_portfolio'].append(copy.deepcopy(self.initial_collateral_portfolio))
+
+        if self.print_log:
+            pprint(self.collateral_portfolio)
+            print('OK. collateral is moved.')
+
+
+class AutoAdjustmentTransactionDynamicMulti(AutoAdjustmentTransactionBase):
+    # 複数トークンで価値調整をした上で、差し入れているトークンが均等になるように調整する
+    # ex.) １００億円の日本円を5種類の有価証券を担保に借りる場合、各トークンの差し入れ額が20億円ずつになるよう調整
+    def __init__(self, jct_portfolio: Dict[str, PortfolioWithPriorityItem], st_portfolio: Dict[str, PortfolioItem], start_date: Union[str, date], options: TransactionOption) -> None:
+        super().__init__(jct_portfolio, st_portfolio, start_date, options)
+
+    def check_diff_and_margin_call(self, date: Union[str, date]) -> None:
+        """
+        JCT, STそれぞれの時価更新を行い、差分の算出、価格調整を行う
+        差し入れている担保の優先寺度に従って差し入れていくことで、複数の担保がある際の
+        価格調整用担保の追加差し入れのような事態を防ぐ
+        """
+        st_total_value = update_portfolio_price(self.st_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+        jct_total_value = update_portfolio_price(self.jct_portfolio, date, self.print_log, is_dummy_data=self.is_dummy_data)
+        collateral_sum = update_portfolio_price(self.collateral_portfolio, date, is_dummy_data=self.is_dummy_data)
+
+        # 預け入れるべき担保額
+        necessary_collateral_value = st_total_value * self.lender_loan_ratio / self.borrower_loan_ratio
+        self.necessary_collateral_value = necessary_collateral_value
+
+        # 差し入れるべき担保と現状差し入れている担保価値との価値の差分
+        collateral_diff = necessary_collateral_value - collateral_sum
+
+        if abs(collateral_diff) < necessary_collateral_value * self.margin_call_threshold:
+            print("price diff is so little that auto margin call is cancelled.")
+            print('margincall threshold: ', self.margin_call_threshold)
+            print('threshold price: ', necessary_collateral_value * self.margin_call_threshold)
+            print('price_diff: ', collateral_diff)
+            self.logs['lender_additional_issue'].append(False)
+            self.logs['borrower_additional_issue'].append(False)
+            self.logs['has_done_margincall'].append(False)
+        else:
+            # 複数トークンで価格調整を行う
+            # 各トークンの総額がそれぞれ均等になるように差し入れる
+            self.logs['has_done_margincall'].append(True)
+
+            # １トークンあたりの差し入れ必要金額
+            collateral_type_num = len(self.collateral_portfolio.keys())
+            necessary_each_collateral_value = math.ceil(necessary_collateral_value / collateral_type_num)
+            print(f'necessary_each_collateral_value: {necessary_each_collateral_value}')
+
+            # トークン毎に必要差し入れ金額になるように調整
+            for code, collateral in self.jct_portfolio.items():
+                pprint(f'{code}: {collateral}')
+                necessary_num = math.ceil(necessary_each_collateral_value / collateral['price'])
+                if (necessary_num > self.collateral_portfolio[code]['num']):
+                    # 追加差入
+                    if (necessary_num - self.collateral_portfolio[code]['num'] > collateral['num']):
+                        # 不足による追加発行
+                        print("collateral num is short@@@@@@@@@")
+                        print(f"!!!!additional token issuing by {self.borrower}!!!!")
+                        self.collateral_portfolio[code]['num'] = necessary_num
+                        self.jct_portfolio[code]['num'] = 0
+                        self.logs['lender_additional_issue'].append(False)
+                        self.logs['borrower_additional_issue'].append(True)
+                    else:
+                        print('追加差入（充足時）')
+                        self.jct_portfolio[code]['num'] -= (necessary_num - self.collateral_portfolio[code]['num'])
+                        self.collateral_portfolio[code]['num'] += (necessary_num - self.collateral_portfolio[code]['num'])
+                        self.logs['lender_additional_issue'].append(False)
+                        self.logs['borrower_additional_issue'].append(False)
+                else:
+                    # 余剰返還
+                    print('余剰返還時')
+                    self.jct_portfolio[code]['num'] += (self.collateral_portfolio[code]['num'] - necessary_num)
+                    self.collateral_portfolio[code]['num'] = necessary_num
+                    self.logs['lender_additional_issue'].append(False)
+                    self.logs['borrower_additional_issue'].append(False)
 
         self.logs['date'].append(date)
         self.logs['st_total_value'].append(st_total_value)
