@@ -49,6 +49,24 @@ class LogVisualizer(object):
             total_value += security['num'] * security['price']
         return total_value
 
+    def calc_portfolio_credit_diff(self):
+        credit_diff_list = []
+        cur_portfolio = {}
+        for i, _portfolio in enumerate(self.collateral_portfolio_list):
+            if i == 0:
+                credit_diff_list.append(0)
+                cur_portfolio = _portfolio
+                continue
+
+            diff_sum = 0
+            for code, security in _portfolio.items():
+                diff_sum += security['price'] * cur_portfolio[code]['num']
+
+            cur_necessary_value = self.necessary_collateral_value_list[i]
+            credit_diff_list.append(abs(cur_necessary_value - diff_sum))
+            cur_portfolio = _portfolio
+        return (statistics.mean(credit_diff_list), max(credit_diff_list))
+
     @staticmethod
     def calc_abs_price_diff(list_1: List[int], list_2: List[int]) -> List[int]:
         if len(list_1) != len(list_2):
@@ -72,31 +90,33 @@ class LogVisualizer(object):
         result['min'] = min(self.collateral_price_diff_list)
         return result
 
+    def calc_token_diff(self):
+        token_move_num_list = []
+        for _portfolio in self.collateral_portfolio_list:
+            token_move_num_list.append(sum([_obj['num'] for _obj in _portfolio.values()]))
+
+        diff_list = []
+        for i in range(len(token_move_num_list)):
+            if i == 0:
+                diff_list.append(0)
+                continue
+            diff_list.append(abs(token_move_num_list[i] - token_move_num_list[i - 1]))
+        return statistics.mean(diff_list), max(diff_list)
+
     def compare_initial_collateral_portfolio(self) -> None:
         # 初期差し入れ担保、価格調整自動化後差し入れ担保の価値推移比較
         _fig, ax1 = plt.subplots(figsize=(30, 15))
-        # ax1_2 = ax1.twinx()
 
-        # plt.title('自動調整前後の差し入れ担保の価値変動比較', fontsize=30, pad=20, fontname="Hiragino Sans")
         ax1.plot(self.date_list, self.initial_collateral_value_list, marker='o', markersize=5, color='red', label='初期差し入れ担保資産価値')
         ax1.set_ylabel('総価値（円）', fontsize=24, fontname="Hiragino Sans")
         ax1.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
         ax1.plot(self.date_list, self.necessary_collateral_value_list, marker='o', markersize=5, color='blue', label='貸付資産価値')
-        # ax1_2.set_ylabel('貸付資産', fontsize=20, fontname="Hiragino Sans")
-        # ax1_2.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-        # ax1_2.yaxis.offsetText.set_fontsize(20)
-        # ax1_2.set_ylim(ax1.get_ylim())
-        # handler1, label1 = ax1.get_legend_handles_labels()
-        # handler2, label2 = ax1_2.get_legend_handles_labels()
 
         ax1.legend(loc=4, prop={"size": 24, "family": "Hiragino Sans"})
         ax1.tick_params(labelsize=24)
 
         ax1.xaxis.offsetText.set_fontsize(24)
         ax1.yaxis.offsetText.set_fontsize(24)
-        # ax1_2.xaxis.offsetText.set_fontsize(24)
-        # ax1_2.tick_params(axis='y', colors='blue', labelsize=24)
-        # ax1_2.yaxis.offsetText.set_fontsize(15)
 
     def compare_initial_collateral_portfolio_ratio(self, ymin: float = -0.2) -> None:
         # 初期差し入れ担保、価格調整自動化後差し入れ担保の価値変動比推移比較

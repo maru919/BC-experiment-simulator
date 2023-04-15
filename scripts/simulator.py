@@ -70,7 +70,7 @@ class VariableLocalTransaction(object):
     """
 
     def __init__(self, jct_portfolio: dict, st_portfolio: dict, start_date, borrower: str = 'Borrower(A)', lender: str = 'Lender(B)',
-                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False, auto_deposit: bool=False) -> None:
+                 borrower_loan_ratio: float = 1.0, lender_loan_ratio: float = 1.0, print_log: bool = False, auto_deposit: bool = False) -> None:
         self.borrower = borrower
         self.lender = lender
         self.jct_portfolio = copy.deepcopy(jct_portfolio)
@@ -130,8 +130,8 @@ class VariableLocalTransaction(object):
             # 自動で不足分の現金を補填する
             additional_deposit = math.ceil((jct_diff_num - self.borrower_jct_num) * jct_price)
             print(f'Additional deposit! {additional_deposit} JPY is added.')
-            print('*'*50)
-            print('*'*50)
+            print('*' * 50)
+            print('*' * 50)
             self.jct_portfolio['JPY']['num'] += additional_deposit
             self.lender_jct_num += jct_diff_num
             self.total_jct_num += jct_diff_num - self.borrower_jct_num
@@ -261,11 +261,13 @@ class StableTransaction(object):
             print('OK. JCT is properly issued or deleted and moved.')
             pprint(log)
 
+
 class VariableGlobalTransaction(object):
     """
     可変JCTグローバル
     WARNING: Deprecated! Not refactored.
     """
+
     def __init__(self, borrower, lender, st_portfolio,
                  init_jct_price, start_date, weight, margin_call_ratio=0.8):
         """
@@ -332,6 +334,7 @@ class VariableGlobalTransaction(object):
 
     def get_transaction_jct(self):
         return self.transaction_jct_num
+
 
 class VariableGlobalJCT(object):
     """
