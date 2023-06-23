@@ -1,5 +1,5 @@
 # BC-experiment-simulator
-ブロックチェーンを利用した貸借取引実証実験のロジックのシミュレーションを行うためのレポジトリ。
+ブロックチェーンを利用した貸借取引実証実験のロジックのシミュレーションを行うためのリポジトリ。
 
 ## Financial data
 株価データは [pandas-datareader](https://github.com/pydata/pandas-datareader) を利用して Yahoo! Finance から取得。
